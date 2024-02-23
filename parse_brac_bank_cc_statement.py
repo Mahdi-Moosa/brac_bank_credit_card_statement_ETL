@@ -1,142 +1,185 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-import argparse
-import PyPDF2
-import getpass
-import re
-import pandas as pd
-import json
+# Import necessary libraries
+import argparse  # For parsing command-line arguments
+import PyPDF2    # For working with PDF files
+import getpass   # For getting password input securely
+import re        # For regular expressions
+import pandas as pd  # For data manipulation and analysis
+import json      # For working with JSON data
 
+# Function to read the content of a PDF file and return as a string
 def read_pdf_lines_as_string(pdf_path):
-    all_lines = ""
-    with open(pdf_path, 'rb') as file:
-        reader = PyPDF2.PdfFileReader(file)
+    all_lines = ""  # Initialize an empty string to store all lines
+    with open(pdf_path, 'rb') as file:  # Open the PDF file in binary mode
+        reader = PyPDF2.PdfFileReader(file)  # Create a PDF reader object
         
+        # Check if the PDF file is encrypted
         if reader.isEncrypted:
+            # If encrypted, prompt the user to enter the password
             password = getpass.getpass("Enter the password for the PDF file: ")
             
+            # Attempt to decrypt the PDF file with the provided password
             if reader.decrypt(password) != 1:
                 raise ValueError("Incorrect password or unable to decrypt PDF.")
         
+        # Get the total number of pages in the PDF
         num_pages = reader.numPages
+        
+        # Iterate through each page of the PDF
         for page_num in range(num_pages):
+            # Extract text from the current page
             page = reader.getPage(page_num)
             text = page.extractText()
+            
+            # Split the text into lines and iterate through each line
             lines = text.split('\n')
             for line in lines:
+                # If the line is not empty, add it to the string of all lines
                 if line.strip():
                     all_lines += line.strip() + "\n"
+    # Return the string containing all lines from the PDF
     return all_lines
 
+# Function to check if a string starts with the pattern 'Page [number] of'
 def starts_with_page_number(text):
-    pattern = r'^Page \d+ of'
-    return re.match(pattern, text) is not None
+    pattern = r'^Page \d+ of'  # Define the regular expression pattern
+    return re.match(pattern, text) is not None  # Return True if pattern matches, else False
 
+# Function to check if a string contains only uppercase letters, numbers, and certain special characters
 def is_uppercase_or_number_with_special_chars(s):
     return all(c.isupper() or c.isdigit() or c.isspace() or c in (',', '&', '(', ')', '*') for c in s)
 
+# Function to parse expense data from a list of strings within specified separators
 def parse_expense_data(lst, start_separator, end_separator=None, perform_expense_discrepancy_check=False):
+    # Define a nested function to get items between start and end separators
     def get_items_between(lst, start_item, end_item=None):
-        found_items = []
-        record_items = False
+        found_items = []  # Initialize an empty list to store found items
+        record_items = False  # Flag to start recording items
         
+        # Iterate through each item in the list
         for item in lst:
-            if item == start_item:
-                record_items = True
+            if item == start_item:  # Check if item matches start separator
+                record_items = True  # Start recording items
                 if end_item is None:
-                    found_items.append(item)
-            elif end_item is not None and item == end_item:
-                break
-            elif record_items:
-                found_items.append(item)
-                
-        return found_items
+                    found_items.append(item)  # Add the item to the found items list
+            elif end_item is not None and item == end_item:  # Check if item matches end separator
+                break  # Stop recording items
+            elif record_items:  # If recording items is enabled
+                found_items.append(item)  # Add the item to the found items list
+        
+        return found_items  # Return the list of found items
     
+    # Define a nested function to filter strings based on accepted start characters
     def filter_strings(lst, accepted_start_chars):
         filtered_strings = [string for string in lst if string.startswith(tuple(accepted_start_chars))]
         return filtered_strings
     
+    # Define a nested function to convert transaction data string to list format
     def transaction_data_string_to_list(input_string):
-        parts = input_string.split()
-        date = parts[0]
-        string_item = ' '.join(parts[1:-3])
-        currency = parts[-3]
+        parts = input_string.split()  # Split the input string into parts
+        date = parts[0]  # Extract transaction date
+        string_item = ' '.join(parts[1:-3])  # Extract transaction description
+        currency = parts[-3]  # Extract currency
         try:
-            float1 = float(parts[-2].replace(',', ''))
-            float2 = float(parts[-1].replace(',', ''))
+            float1 = float(parts[-2].replace(',', ''))  # Extract transaction amount
+            float2 = float(parts[-1].replace(',', ''))  # Extract billing amount
         except ValueError:
             if parts[-1].strip() == 'CR':
-                float1 = float(parts[-3].replace(',', ''))
-                float2 = float(parts[-2].replace(',', '').strip()) * -1
+                float1 = float(parts[-3].replace(',', ''))  # Extract transaction amount
+                float2 = float(parts[-2].replace(',', '').strip()) * -1  # Extract billing amount
 
+        # Create a list containing transaction data
         result_list = [date, string_item, currency, float1, float2]
         return result_list
     
+    # Get substring between specified separators
     substring_between_separators = get_items_between(lst, start_separator, end_separator)
     
+    # Define accepted start characters for filtering strings
     accepted_start_chars = ['0', '1', '2', '3']
     
+    # Filter strings based on accepted start characters
     basic_card_expenses = filter_strings(substring_between_separators, accepted_start_chars)
     
+    # Convert filtered strings to list format
     basic_card_expenses_list = [transaction_data_string_to_list(i) for i in basic_card_expenses]
     
+    # Define column headers for the DataFrame
     column_headers = ['transaction_date', 'transaction_description', 'currency', 'transaction_amount', 'billing_amount']
     
+    # Create a DataFrame from the list of transaction data
     basic_card_transaction_df = pd.DataFrame(basic_card_expenses_list, columns=column_headers)
     
-    return basic_card_transaction_df
+    return basic_card_transaction_df  # Return the DataFrame containing parsed data
 
+# Main function to handle command-line arguments and execute the script
 def main():
+    # Define command-line argument parser with description
     parser = argparse.ArgumentParser(description='Process a bank statement PDF file and save data to Excel, JSON, or CSV.')
+    
+    # Add command-line arguments
     parser.add_argument('pdf_path', type=str, help='Path to the PDF file')
     parser.add_argument('--save', type=str, default='excel', choices=['excel', 'json'], help='Choose raw data save format: excel or json')
     parser.add_argument('--summary_print', type=str, default='n', choices=['y', 'n'], help='Print vendor aggregated expense summary if y')
     parser.add_argument('--summary_save', type=str, default='n', choices=['y', 'n'], help='Save vendor aggregated expense summary as CSV if y')
+    
+    # Parse command-line arguments
     args = parser.parse_args()
     
+    # Extract arguments
     pdf_path = args.pdf_path
     save_format = args.save
     summary_print = args.summary_print
     summary_save = args.summary_save
     
+    # Read PDF file and extract content as a string
     lines_string = read_pdf_lines_as_string(pdf_path)
     line_list = lines_string.split('\n')
 
+    # Define excluded lines
     excluded_starts = ['-', '*', 
                        'Cash Limit is subject to availability of total Credit Limit.',
                       'originated in Bangladesh etc. with foreign currencies or through your international card, as these type of transactions are strictly prohibited and punishable offences by the directives of Bangladesh Bank and Bangladesh',
                        'Government.'                  
                       ]
 
+    # Filter out excluded lines
     filtered_lines = [line for line in line_list if not any(line.startswith(start) for start in excluded_starts)]
     filtered_lines = [i for i in filtered_lines if not starts_with_page_number(i)]
 
+    # Identify separator strings between different sections of the bank statement
     separator_strings = [i for i in filtered_lines if is_uppercase_or_number_with_special_chars(i)]
     
+    # Identify ideal separators
     fixed_items = ['PAYMENTS', 'INTERESTS, FEES & VAT', 'REFUND, REVERSAL & CREDITS']
     variable_item_start = ['BASIC CARD', 'SUPPLEMENTARY CARD']
-
     ideal_separators = [item for item in separator_strings if any(item.startswith(start) for start in variable_item_start) or item in fixed_items]
 
+    # Parse different types of expenses
     fees_df = parse_expense_data(filtered_lines, ideal_separators[1], ideal_separators[2], perform_expense_discrepancy_check=False)
     refund_df = parse_expense_data(filtered_lines, ideal_separators[2], ideal_separators[3], perform_expense_discrepancy_check=False)
     basic_card_expenses = parse_expense_data(filtered_lines, ideal_separators[3], ideal_separators[4], perform_expense_discrepancy_check=True)
     supplementary_card_expenses = parse_expense_data(filtered_lines, ideal_separators[4],  perform_expense_discrepancy_check=True)
     
+    # Add transaction origin information
     basic_card_expenses['transaction_origin'] = 'basic'
     supplementary_card_expenses['transaction_origin'] = 'supplementary'
     
+    # Optionally print expense summary
     if summary_print == 'y':
         expense_df = pd.concat([basic_card_expenses, supplementary_card_expenses], ignore_index=True)
         summary = expense_df.groupby(by='transaction_description')['transaction_amount'].sum().sort_values(ascending=False)
         print(summary)
     
+    # Optionally save expense summary
     if summary_save == 'y':
         summary_filename = pdf_path.replace('.pdf', '_expense_summary.csv')
         summary_df = pd.concat([basic_card_expenses, supplementary_card_expenses], ignore_index=True)
         summary_df.groupby(by='transaction_description')['transaction_amount'].sum().sort_values(ascending=False).to_csv(summary_filename, sep=',', index=True)
     
+    # Save parsed data based on specified format
     if save_format == 'excel':
         excel_filename = pdf_path.replace('.pdf', '.xlsx')
         with pd.ExcelWriter(excel_filename) as writer:
@@ -155,5 +198,6 @@ def main():
         with open(json_filename, 'w') as json_file:
             json.dump(data_dict, json_file, indent=4)
 
+# Execute main function if the script is run as the main program
 if __name__ == "__main__":
     main()
