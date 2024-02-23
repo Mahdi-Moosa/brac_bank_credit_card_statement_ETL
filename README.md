@@ -22,3 +22,6 @@ options:
                         Print vendor aggregated expense summary if y
   --summary_save {y,n}  Save vendor aggregated expense summary as CSV if y
 ```
+
+**Features to implement**
+* Does not work with password protected statements (that are received as emails from the bank).
