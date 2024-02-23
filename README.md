@@ -25,3 +25,8 @@ options:
 
 **Features to implement**
 * Does not work with password protected statements (that are received as emails from the bank).
+
+**Running script on all PDF statements (using Windows batch script)**
+- Put the bat file in the same folder as the python script and all pdf files.
+- Modify the bat file - provide your own conda environment that can works with the statement.
+
