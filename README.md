@@ -1,7 +1,7 @@
 **Scripts:**
 - `parse_brac_bank_cc_statement.py` - Extract & transform BRAC Bank Credit Card Statement data.
 - `run_py-scripts_on_pdfs.bat` - Batch script to process all PDF statements. _Current implementation works with only un-encrypted files._
-- `load_plot.py` - Loads summary data and plots monthly venodr aggregated pie charts. You can specify the number of pie slices to be plotted for each of the monthly aggregated data.
+- `load_plot.py` - Loads summary data and plots monthly vendor aggregated pie charts. You can specify the number of pie slices to be plotted for each of the monthly aggregated data.
 
 **Features:**
 * Reads PDF statement. PDF has to be unencrypted. Statements are available at the Astha app or BRAC Bank internet banking site.
