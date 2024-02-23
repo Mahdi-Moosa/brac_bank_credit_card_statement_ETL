@@ -1,3 +1,7 @@
+**Scripts:**
+- `parse_brac_bank_cc_statement.py` - Extract & transform BRAC Bank Credit Card Statement data.
+- `run_py-scripts_on_pdfs.bat` - Batch script to process all PDF statements. _Current implementation works with only un-encrypted files._
+
 **Features:**
 * Reads PDF statement. PDF has to be unencrypted. Statements are available at the Astha app or BRAC Bank internet banking site.
 * Can save basic card data, supplementary card data, refund data and fee data as excel or json file, as/if specified.
