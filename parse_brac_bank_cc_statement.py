@@ -123,75 +123,86 @@ def parse_expense_data(lst, start_separator, end_separator=None, perform_expense
 
 # Main function to handle command-line arguments and execute the script
 def main():
-    # Define command-line argument parser with description
-    parser = argparse.ArgumentParser(description='Process a bank statement PDF file and save data to Excel, JSON, or CSV.')
-    
-    # Add command-line arguments
-    parser.add_argument('pdf_path', type=str, help='Path to the PDF file')
-    parser.add_argument('--save', type=str, default='excel', choices=['excel', 'json'], help='Choose raw data save format: excel or json')
-    parser.add_argument('--summary_print', type=str, default='n', choices=['y', 'n'], help='Print vendor aggregated expense summary if y')
-    parser.add_argument('--summary_save', type=str, default='n', choices=['y', 'n'], help='Save vendor aggregated expense summary as CSV if y')
-    
-    # Parse command-line arguments
+    parser = argparse.ArgumentParser(
+        description='Process a bank statement PDF file and save data to Excel, JSON, or CSV.')
+    parser.add_argument('pdf_path', type=str,
+                        help='Path to the PDF file')
+    parser.add_argument('--save', type=str, default='excel',
+                        choices=['no', 'excel', 'json', 'yes'], help='Choose raw data save format: excel, json, or specify "no" to not save data. If "yes" is provided, default to saving in Excel format.')
+    parser.add_argument('--summary_print', type=str, default='n',
+                        choices=['y', 'n'], help='Print vendor aggregated expense summary if y')
+    parser.add_argument('--summary_save', type=str, default='n',
+                        choices=['y', 'n'], help='Save vendor aggregated expense summary as CSV if y')
+
     args = parser.parse_args()
-    
-    # Extract arguments
+
     pdf_path = args.pdf_path
     save_format = args.save
     summary_print = args.summary_print
     summary_save = args.summary_save
-    
-    # Read PDF file and extract content as a string
+
+    if save_format == 'yes':
+        # Default to Excel format if --save is set to 'yes'
+        save_format = 'excel'
+
     lines_string = read_pdf_lines_as_string(pdf_path)
     line_list = lines_string.split('\n')
 
-    # Define excluded lines
-    excluded_starts = ['-', '*', 
-                       'Cash Limit is subject to availability of total Credit Limit.',
+    excluded_starts = ['-', '*', 'Cash Limit is subject to availability of total Credit Limit.',
                       'originated in Bangladesh etc. with foreign currencies or through your international card, as these type of transactions are strictly prohibited and punishable offences by the directives of Bangladesh Bank and Bangladesh',
-                       'Government.'                  
-                      ]
+                      'Government.']
+    filtered_lines = [line for line in line_list if not any(
+        line.startswith(start) for start in excluded_starts)]
+    filtered_lines = [i for i in filtered_lines if not starts_with_page_number(
+        i)]
 
-    # Filter out excluded lines
-    filtered_lines = [line for line in line_list if not any(line.startswith(start) for start in excluded_starts)]
-    filtered_lines = [i for i in filtered_lines if not starts_with_page_number(i)]
+    separator_strings = [i for i in filtered_lines if is_uppercase_or_number_with_special_chars(
+        i)]
 
-    # Identify separator strings between different sections of the bank statement
-    separator_strings = [i for i in filtered_lines if is_uppercase_or_number_with_special_chars(i)]
-    
-    # Identify ideal separators
-    fixed_items = ['PAYMENTS', 'INTERESTS, FEES & VAT', 'REFUND, REVERSAL & CREDITS']
+    fixed_items = ['PAYMENTS', 'INTERESTS, FEES & VAT',
+                   'REFUND, REVERSAL & CREDITS']
     variable_item_start = ['BASIC CARD', 'SUPPLEMENTARY CARD']
-    ideal_separators = [item for item in separator_strings if any(item.startswith(start) for start in variable_item_start) or item in fixed_items]
+    ideal_separators = [item for item in separator_strings if any(
+        item.startswith(start) for start in variable_item_start) or item in fixed_items]
 
-    # Parse different types of expenses
-    fees_df = parse_expense_data(filtered_lines, ideal_separators[1], ideal_separators[2], perform_expense_discrepancy_check=False)
-    refund_df = parse_expense_data(filtered_lines, ideal_separators[2], ideal_separators[3], perform_expense_discrepancy_check=False)
-    basic_card_expenses = parse_expense_data(filtered_lines, ideal_separators[3], ideal_separators[4], perform_expense_discrepancy_check=True)
-    supplementary_card_expenses = parse_expense_data(filtered_lines, ideal_separators[4],  perform_expense_discrepancy_check=True)
-    
-    # Add transaction origin information
+    fees_df = parse_expense_data(
+        filtered_lines, ideal_separators[1], ideal_separators[2], perform_expense_discrepancy_check=False)
+    refund_df = parse_expense_data(
+        filtered_lines, ideal_separators[2], ideal_separators[3], perform_expense_discrepancy_check=False)
+    basic_card_expenses = parse_expense_data(
+        filtered_lines, ideal_separators[3], ideal_separators[4], perform_expense_discrepancy_check=True)
+    supplementary_card_expenses = parse_expense_data(
+        filtered_lines, ideal_separators[4], perform_expense_discrepancy_check=True)
+
     basic_card_expenses['transaction_origin'] = 'basic'
     supplementary_card_expenses['transaction_origin'] = 'supplementary'
-    
-    # Optionally print expense summary
+
     if summary_print == 'y':
-        expense_df = pd.concat([basic_card_expenses, supplementary_card_expenses], ignore_index=True)
-        summary = expense_df.groupby(by='transaction_description')['transaction_amount'].sum().sort_values(ascending=False)
+        expense_df = pd.concat(
+            [basic_card_expenses, supplementary_card_expenses], ignore_index=True)
+        summary = expense_df.groupby(
+            by='transaction_description')['transaction_amount'].sum().sort_values(ascending=False)
         print(summary)
-    
-    # Optionally save expense summary
+
     if summary_save == 'y':
-        summary_filename = pdf_path.replace('.pdf', '_expense_summary.csv')
-        summary_df = pd.concat([basic_card_expenses, supplementary_card_expenses], ignore_index=True)
-        summary_df.groupby(by='transaction_description')['transaction_amount'].sum().sort_values(ascending=False).to_csv(summary_filename, sep=',', index=True)
-    
-    # Save parsed data based on specified format
+        summary_filename = pdf_path.replace(
+            '.pdf', '_expense_summary.csv')
+        summary_df = pd.concat(
+            [basic_card_expenses, supplementary_card_expenses], ignore_index=True)
+        summary_df.groupby(by='transaction_description')[
+            'transaction_amount'].sum().sort_values(ascending=False).to_csv(summary_filename, sep=',', index=True)
+
+    if save_format == 'no':
+        print("No output will be provided. Data will not be saved.")
+        return
+
     if save_format == 'excel':
         excel_filename = pdf_path.replace('.pdf', '.xlsx')
         with pd.ExcelWriter(excel_filename) as writer:
-            basic_card_expenses.to_excel(writer, sheet_name='Basic Card Expenses', index=False)
-            supplementary_card_expenses.to_excel(writer, sheet_name='Supplementary Card Expenses', index=False)
+            basic_card_expenses.to_excel(
+                writer, sheet_name='Basic Card Expenses', index=False)
+            supplementary_card_expenses.to_excel(
+                writer, sheet_name='Supplementary Card Expenses', index=False)
             refund_df.to_excel(writer, sheet_name='Refund Data', index=False)
             fees_df.to_excel(writer, sheet_name='Fees Data', index=False)
     elif save_format == 'json':
