@@ -71,24 +71,34 @@ def parse_expense_data(lst, start_separator, end_separator=None, perform_expense
         
         return found_items  # Return the list of found items
     
-    # Define a nested function to filter strings based on accepted start characters
-    def filter_strings(lst, accepted_start_chars):
-        filtered_strings = [string for string in lst if string.startswith(tuple(accepted_start_chars))]
+    # Define a nested function to filter strings based on whether they start with a date in the format DD-MM-YYYY
+    def filter_date_strings(lst):
+        filtered_strings = []
+        date_pattern = r'\b\d{2}-\d{2}-\d{4}\b'  # Regular expression pattern for DD-MM-YYYY format date
+        
+        for string in lst:
+            if re.match(date_pattern, string):
+                filtered_strings.append(string)
+                
         return filtered_strings
     
     # Define a nested function to convert transaction data string to list format
     def transaction_data_string_to_list(input_string):
         parts = input_string.split()  # Split the input string into parts
         date = parts[0]  # Extract transaction date
-        string_item = ' '.join(parts[1:-3])  # Extract transaction description
-        currency = parts[-3]  # Extract currency
+        
+        
         try:
             float1 = float(parts[-2].replace(',', ''))  # Extract transaction amount
             float2 = float(parts[-1].replace(',', ''))  # Extract billing amount
+            currency = parts[-3]  # Extract currency
+            string_item = ' '.join(parts[1:-3])  # Extract transaction description
         except ValueError:
             if parts[-1].strip() == 'CR':
                 float1 = float(parts[-3].replace(',', ''))  # Extract transaction amount
                 float2 = float(parts[-2].replace(',', '').strip()) * -1  # Extract billing amount
+                currency = parts[-4]  # Extract currency
+                string_item = ' '.join(parts[1:-4])  # Extract transaction description
 
         # Create a list containing transaction data
         result_list = [date, string_item, currency, float1, float2]
@@ -97,11 +107,8 @@ def parse_expense_data(lst, start_separator, end_separator=None, perform_expense
     # Get substring between specified separators
     substring_between_separators = get_items_between(lst, start_separator, end_separator)
     
-    # Define accepted start characters for filtering strings
-    accepted_start_chars = ['0', '1', '2', '3']
-    
-    # Filter strings based on accepted start characters
-    basic_card_expenses = filter_strings(substring_between_separators, accepted_start_chars)
+    # Filter strings based on whether they start with a date in the format DD-MM-YYYY
+    basic_card_expenses = filter_date_strings(substring_between_separators)
     
     # Convert filtered strings to list format
     basic_card_expenses_list = [transaction_data_string_to_list(i) for i in basic_card_expenses]
