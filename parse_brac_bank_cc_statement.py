@@ -128,7 +128,7 @@ def main():
     parser.add_argument('pdf_path', type=str,
                         help='Path to the PDF file')
     parser.add_argument('--save', type=str, default='excel',
-                        choices=['no', 'excel', 'json', 'yes'], help='Choose raw data save format: excel, json, or specify "no" to not save data. If "yes" is provided, default to saving in Excel format.')
+                        choices=['yes', 'no', 'excel', 'json'], help='Choose raw data save format: excel, json, or specify "no" to not save data. If "yes" is provided, default to saving in Excel format.')
     parser.add_argument('--summary_print', type=str, default='n',
                         choices=['y', 'n'], help='Print vendor aggregated expense summary if y')
     parser.add_argument('--summary_save', type=str, default='n',
